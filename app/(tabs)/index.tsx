@@ -5,24 +5,30 @@ import { useNavigation } from "expo-router";
 import React, { useState } from "react";
 import { Image, StyleSheet, Platform, View, Text, FlatList, ActivityIndicator, RefreshControl, Pressable } from "react-native";
 import { Icon, SearchBar } from "react-native-elements";
+import listStore from '../../store/TaskListStore';
+
+
+
 
 export default function HomeScreen() {
 
-
-  const navigation = useNavigation()
+  const navigation = useNavigation();
 
   const [data, setDate] = useState([])
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('')
-  const [hashMore, setHashMore] = useState(false);
+  const [loading, setLoading] = useState(true)
+  const [hashMore, setHashMore] = useState(true);
   const [totalrecords, setTotalRecords] = useState(0)
   const [isRefreshing, setRefreshing] = useState(false);
-  const [isFooterLoading, setIsFooterLoading] = useState(false);
+  const [isFooterLoading, setIsFooterLoading] = useState(true);
   const [onSearchData, setOnSearchData] = useState([])
 
   React.useEffect(() => {
-    ApiCall({ page: page });
-    onSearchApiCall()
+    if (listStore.list.length) setLoading(false)
+    else setLoading(true)
+    ApiCall({ page: 1 });
+    onSearchApiCall();
   }, []);
 
   const ApiCall = async ({ page = 1 }) => {
@@ -31,29 +37,29 @@ export default function HomeScreen() {
         params: {
           limit: 10,
           skip: page,
+          // page:page
         }
       })
-      console.log({ response: response.data.total });
       const arrayData = response.data;
       setTotalRecords(response.data.total)
-      console.log({ response: response.data.total });
-      if (data?.length === totalrecords) {
-        setHashMore(true)
-        setIsFooterLoading(false)
-        return null;
+      if(response.data.users.length){
+        setHashMore(true);
+        setIsFooterLoading(false);
+      }
+      if (page === 1) {
+        setDate(response.data.users)
+        listStore.setlist(response.data.users)
       } else {
-        if (page === 1) {
-          setDate(response.data.users)
-        } else {
-          setDate((pre: any) => [...pre, ...arrayData.users])
-        }
+        setDate((pre: any) => [...pre, ...arrayData.users])
+        listStore.setlist(data)
       }
 
     } catch (error) {
       console.log("@@@ apical error =====>>>>>>>", error)
     } finally {
+      setLoading(false)
       setRefreshing(false);
-      console.log("@@@ finally =====>>>>>>>")
+      console.log("@@@ finally =====>>>>>>>", listStore.list)
     }
   }
 
@@ -111,42 +117,46 @@ export default function HomeScreen() {
         searchIcon={() => <Icon type={'antdesign'} name={'search1'} size={20} />}
         placeholderTextColor={'#000'}
         placeholder={'Search company name...'}
-        style={{ backgroundColor: '#a0a0a0' }}
+        style={{ backgroundColor: 'lightgray' }}
         containerStyle={styles.searchBarContainer}
         inputStyle={{ color: '#000' }}
         inputContainerStyle={styles.inputContainerStyle}
         onChangeText={(values: string) => { return onSeachCompanyName(values); }}
       />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.companyNametxtSty}>Total Records: - {totalrecords}</Text>
-        <FlatList
-          data={data}
-          extraData={data}
-          onEndReachedThreshold={0.5}
-          keyExtractor={(item, index) => index.toString()}
-          renderItem={({ item, index }) => renderItem(item, index)}
-          onEndReached={() => {
-            if (!hashMore) {
-              setPage(page + 1);
-              setIsFooterLoading(true);
-              setTimeout(() => { ApiCall({ page: page }) }, 2000)
+      {loading ?
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size={30} />
+        </View> :
+        <View style={{ flex: 1 }}>
+          <Text style={styles.companyNametxtSty}>Total Records: - {totalrecords}</Text>
+          <FlatList
+            data={data}
+            extraData={data}
+            onEndReachedThreshold={0.5}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item, index }) => renderItem(item, index)}
+            onEndReached={() => {
+              // if(loading)setIsFooterLoading(false)
+              if (hashMore) {
+                setPage(page + 1);
+                setTimeout(() => { ApiCall({ page: page }) }, 1000)
+              }
             }
-          }
-          }
-          ListFooterComponent={() => {
-            if (!isFooterLoading) return null;
-            return (
-              <View style={styles.footerContSty}>
-                <ActivityIndicator size={30} color={'#000'} />
-              </View>
-            )
-          }}
-          refreshing={isRefreshing}
-          refreshControl={
-            <RefreshControl colors={['#000']} refreshing={isRefreshing} onRefresh={handleRefresh} />
-          }
-        />
-      </View>
+            }
+            ListFooterComponent={() => {
+              if (!isFooterLoading) return null;
+              return (
+                <View style={styles.footerContSty}>
+                  <ActivityIndicator size={30} color={'#000'} />
+                </View>
+              )
+            }}
+            refreshing={isRefreshing}
+            refreshControl={
+              <RefreshControl colors={['#000']} refreshing={isRefreshing} onRefresh={handleRefresh} />
+            }
+          />
+        </View>}
     </View>
   );
 }
@@ -192,6 +202,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff'
   },
   inputContainerStyle: {
-    backgroundColor: '#a0a0a0'
+    backgroundColor: 'lightgray'
   }
 });
